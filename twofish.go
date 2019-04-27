@@ -2,8 +2,10 @@ package main
 
 import (
 	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"os"
+	"strconv"
 )
 
 type Mode int
@@ -18,6 +20,7 @@ type twofish struct {
 	mode        Mode
 	verbose     bool
 	key         []byte
+	keyBlock    []uint16
 	keyFilepath string
 	inputFile   *os.File
 	outputFile  *os.File
@@ -50,12 +53,23 @@ func printHelp() {
 	fmt.Print("\n")
 }
 
-func twofishEncrypt(tf *twofish) {
-	fmt.Printf("encrypt\n")
-}
+// Attempts to read 8 characters and convert them
+// into 4 16-bit integers. If there are less than 8 characters
+// left in the file, the rightmost bits of the words are set to zero.
+// Returns a uint16 slice of length 4.
+func getBlock(textFile *os.File) []uint16 {
+	buf := make([]byte, 8)
+	_, err := textFile.Read(buf)
+	if err != nil {
+		return nil
+	}
 
-func twofishDecrypt(tf *twofish) {
-	fmt.Printf("Decrypt\n")
+	words := make([]uint16, 4)
+	words[0] = binary.BigEndian.Uint16(buf[:2])
+	words[1] = binary.BigEndian.Uint16(buf[2:4])
+	words[2] = binary.BigEndian.Uint16(buf[4:6])
+	words[3] = binary.BigEndian.Uint16(buf[6:8])
+	return words
 }
 
 // getKey attempts to read 16 characters from keyFile.
@@ -163,15 +177,35 @@ func parseArgs(tf *twofish) {
 		}
 
 		tf.key = keyBuf
+		tf.keyBlock = make([]uint16, 4)
+		tf.keyBlock[0], err = strconv.ParseInt(string(keyBuf[0:4]), 2, 16)
+		tf.keyBlock[1] = binary.BigEndian.Uint16(keyBuf[4:8])
+		tf.keyBlock[2] = binary.BigEndian.Uint16(keyBuf[8:12])
+		tf.keyBlock[3] = binary.BigEndian.Uint16(keyBuf[12:16])
 		tf.LogInfo("Read key from %s", os.Args[index-1])
 	}
+}
+
+func twofishEncrypt(tf *twofish) {
+	block := getBlock(tf.inputFile)
+	for block != nil {
+
+		// whitening step
+
+		block = getBlock(tf.inputFile)
+	}
+
+	fmt.Printf("Done reading\n")
+}
+
+func twofishDecrypt(tf *twofish) {
+	fmt.Printf("Decrypt\n")
 }
 
 func main() {
 	tf := twofish{keysize: 16, verbose: false}
 
 	parseArgs(&tf)
-
 	fmt.Printf("Key: %s\n", tf.key)
 
 	// Encryption mode
