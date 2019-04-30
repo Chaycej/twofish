@@ -35,15 +35,16 @@ var ftable = []uint8{0xa3, 0xd7, 0x09, 0x83, 0xf8, 0x48, 0xf6, 0xf4, 0xb3, 0x21,
 	0x5e, 0x6c, 0xa9, 0x13, 0x57, 0x25, 0xb5, 0xe3, 0xbd, 0xa8, 0x3a, 0x01, 0x05, 0x59, 0x2a, 0x46}
 
 type twofish struct {
-	keysize     int // size in bytes
-	mode        Mode
-	verbose     bool
-	key         []byte
-	keyBlock    []uint16
-	keyFilepath string
-	inputFile   *os.File
-	outputFile  *os.File
-	keyFile     *os.File
+	keysize        int // size in bytes
+	mode           Mode
+	verbose        bool
+	key            []byte
+	keyBlock       []uint16
+	keyFilepath    string
+	outputFilepath string
+	inputFile      *os.File
+	outputFile     *os.File
+	keyFile        *os.File
 }
 
 // Logging method that prints to console when verbose mode is set
@@ -265,6 +266,7 @@ func parseArgs(tf *twofish) {
 	if err != nil {
 		tf.LogInfo("%s does not exist", tf.keyFilepath)
 		generateKey(tf, keyBuf)
+		err = nil
 	} else { // Read key from existing file
 		tf.keyFile = keyFile
 		n := getKey(tf.keyFile, keyBuf)
@@ -272,13 +274,34 @@ func parseArgs(tf *twofish) {
 			fmt.Printf("key size must be 8 bytes\n")
 			os.Exit(1)
 		}
-
 		tf.key = keyBuf
 	}
 
 	hexToInt(string(tf.key), tf.keyBlock)
 	tf.LogInfo("key words: %d %d %d %d", tf.keyBlock[0],
 		tf.keyBlock[1], tf.keyBlock[2], tf.keyBlock[3])
+
+	// Open output file
+	tf.outputFile, err = os.Open(os.Args[index])
+	tf.outputFilepath = os.Args[index]
+
+	// Already a ciphertext file, kill the program
+	if err == nil {
+		fmt.Fprintf(os.Stderr, "Already a cipertext file created at %s\n", tf.outputFilepath)
+		fmt.Fprintf(os.Stderr, "Delete the ciphertext file to resume encryption")
+		tf.inputFile.Close()
+		tf.outputFile.Close()
+		os.Exit(1)
+	}
+	err = nil
+
+	tf.outputFile, err = os.Create(tf.outputFilepath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		tf.inputFile.Close()
+		tf.outputFile.Close()
+		os.Exit(1)
+	}
 }
 
 // Permutates the 16-bit word using 4 subkeys.
@@ -315,13 +338,18 @@ func f(round int, r0, r1 uint16, tf *twofish) (uint16, uint16) {
 	t4 <<= 8
 	t4 |= uint16(subkeys[11])
 
-	f0 := (t0 + 2*t1 + t3) % uint16(math.Pow(2, 16))
-	f1 := (2*t0 + t1 + t4) % uint16(math.Pow(2, 16))
-	return f0, f1
+	f0 := uint32(t0+2*t1+t3) % uint32(math.Pow(2, 16))
+	f1 := uint32(2*t0+t1+t4) % uint32(math.Pow(2, 16))
+	fmt.Printf("f0 = %d, f1 = %d\n", f0, f1)
+	return uint16(f0), uint16(f1)
 }
 
+// Reads and encrypts 64 bits of the input file at a time and writes
+// the result block to the output file. Each block goes through 16 rounds
+// of transformations.
 func twofishEncrypt(tf *twofish) {
 	block := getBlock(tf.inputFile)
+	var res uint64
 	for block != nil {
 
 		// whitening step
@@ -333,10 +361,34 @@ func twofishEncrypt(tf *twofish) {
 
 		for round < 16 {
 			f0, f1 := f(round, r0, r1, tf)
+			r0_temp := bits.RotateLeft16(r2^f0, -1)
+			r1_temp := bits.RotateLeft16(r3, 1) ^ f1
+			r2 = r0
+			r3 = r1
+			r0 = r0_temp
+			r1 = r1_temp
+			round++
 		}
 
+		res |= uint64(r2 ^ tf.keyBlock[0])
+		res <<= 16
+		res |= uint64(r3 ^ tf.keyBlock[1])
+		res <<= 16
+		res |= uint64(r0 ^ tf.keyBlock[2])
+		res <<= 16
+		res |= uint64(r1 ^ tf.keyBlock[3])
+		outputBlock := make([]byte, 8)
+		binary.BigEndian.PutUint64(outputBlock, res)
+
+		n, err := tf.outputFile.Write(outputBlock)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
+		}
+		tf.LogInfo("Wrote %d bytes to output file", n)
 		block = getBlock(tf.inputFile)
 	}
+	tf.outputFile.Close()
 }
 
 func twofishDecrypt(tf *twofish) {
