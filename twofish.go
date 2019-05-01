@@ -86,27 +86,6 @@ func reverseSlice(arr []uint8) {
 	}
 }
 
-// Converts a 16-character hex string (64 bits)
-// into four 16-bit integers and stores them in res.
-func hexToInt(hexKey string, res []uint16) {
-	for i := 0; i < 4; i++ {
-		n1, _ := strconv.ParseInt(hexKey[i*4:i*4+2], 16, 16)
-		n2, _ := strconv.ParseInt(hexKey[i*4+2:i*4+4], 16, 16)
-		res[i] = ((res[i] | uint16(n1)) << 8) | uint16(n2)
-	}
-}
-
-// Concatenates four 16-bit integers into one 64-bit integer.
-// Returns the new uint64 integer.
-func keyBlockToInt64(keyblock []uint16) uint64 {
-	var ans uint64
-	ans = (uint64(keyblock[0]) | ans) << 16
-	ans = (uint64(keyblock[1]) | ans) << 16
-	ans = (uint64(keyblock[2]) | ans) << 16
-	ans = uint64(keyblock[3]) | ans
-	return ans
-}
-
 // Converts a unsigned 64-bit integer into
 // a slice of four 16-bit integers.
 func int64ToKeyBlock(num uint64, keyblock []uint16) {
