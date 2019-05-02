@@ -66,10 +66,10 @@ func checkError(err error) {
 func printHelp() {
 	fmt.Print("\n")
 	fmt.Println("encryption mode:")
-	fmt.Println("    twofishContext -e [-v] <text filepath> <key filepath> <output filepath>")
+	fmt.Println("    twofish -e [-v] <text filepath> <key filepath> <output filepath>")
 	fmt.Print("\n")
 	fmt.Println("decryption mode:")
-	fmt.Println("    twofishContext -d [-v] <ciphertext filepath> <key filepath> <output filepath>")
+	fmt.Println("    twofish -d [-v] <ciphertext filepath> <key filepath> <output filepath>")
 	fmt.Print("\n")
 }
 
@@ -137,7 +137,7 @@ func getBlock(textFile *os.File) []uint16 {
 
 // getKey attempts to read 16 characters from keyFile.
 // Each character in the file represents a 16-bit hex value.
-// It returns the number of characters read from keyFile
+// It returns the number of characters read from keyFile.
 func getKey(tf *twofishContext) int {
 	buf := make([]byte, 16)
 	n, err := tf.keyFile.Read(buf)
@@ -155,7 +155,7 @@ func getKey(tf *twofishContext) int {
 	return n
 }
 
-// returns true if the filename is a file
+// returns true if the filename is a file.
 func fileExists(filename string) bool {
 	info, err := os.Stat(filename)
 	if os.IsNotExist(err) {
@@ -234,7 +234,7 @@ func generateKey(tf *twofishContext) int {
 
 // Generates twelve 8-bit subkeys for f() and g() rounds
 // and updates the 64-bit key by shifting 1 bit for each subkey generated.
-// Updates the 8-bit integer slice of twelve subkeys
+// Updates the 8-bit integer slice of twelve subkeys.
 func generateSubkeys(round int, subkeys []uint8, tf *twofishContext) {
 	index := 0
 
@@ -273,8 +273,7 @@ func generateSubkeys(round int, subkeys []uint8, tf *twofishContext) {
 }
 
 // Updates the key by rotating it right by 1 digit.
-// Returns an 8-bit integer from the original key based on
-// round % 8
+// Returns an 8-bit integer from the original key based on round % 8.
 func d(key *uint64, round int) uint8 {
 	var keyalias uint64 = *key
 	index := round % 8
@@ -377,7 +376,7 @@ func parseArgs(tf *twofishContext) {
 }
 
 // Permutates the 16-bit word using 4 subkeys.
-// Returns a new 16-bit integer
+// Returns a new 16-bit integer.
 func g(word uint16, subkeys []uint8) uint16 {
 	var g1, g2 uint8
 
