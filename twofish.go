@@ -478,6 +478,7 @@ func twofish(tf *twofishContext) {
 			writeOutput(res, tf.outputFile)
 			block = getCipherBlock(tf.inputFile)
 		}
+		res = 0
 	}
 	tf.outputFile.Close()
 }
