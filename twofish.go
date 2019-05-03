@@ -128,10 +128,10 @@ func getBlock(textFile *os.File) []uint16 {
 	}
 
 	words := make([]uint16, 4)
-	words[3] = binary.BigEndian.Uint16(buf[:2])
-	words[2] = binary.BigEndian.Uint16(buf[2:4])
-	words[1] = binary.BigEndian.Uint16(buf[4:6])
-	words[0] = binary.BigEndian.Uint16(buf[6:8])
+	words[0] = binary.BigEndian.Uint16(buf[:2])
+	words[1] = binary.BigEndian.Uint16(buf[2:4])
+	words[2] = binary.BigEndian.Uint16(buf[4:6])
+	words[3] = binary.BigEndian.Uint16(buf[6:8])
 	return words
 }
 
