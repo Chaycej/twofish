@@ -103,9 +103,9 @@ func int64ToKeyBlock(num uint64, keyblock []uint16) {
 // should never be less than 16 characters read since encryption
 // always writes 16 hex characters to the cipher file.
 // Returns a uint16 slice of length 4.
-func getCipherBlock(cipherFile *os.File) []uint16 {
+func getCipherBlock(inputFile *os.File) []uint16 {
 	buf := make([]byte, 16)
-	_, err := cipherFile.Read(buf)
+	_, err := inputFile.Read(buf)
 	if err != nil {
 		return nil
 	}
@@ -116,13 +116,21 @@ func getCipherBlock(cipherFile *os.File) []uint16 {
 	return words
 }
 
-// Attempts to read 8 characters and convert them
+// Reads a block comprising of 64 bits from the input file.
+// If decryption mode is set, the bytes read from the input file
+// are treated as hex (cipherBlock()).
+//
+// If encryption mode is set, 8 characters are read at a time converted
 // into 4 16-bit integers. If there are less than 8 characters
 // left in the file, the rightmost bits of the words are set to zero.
 // Returns a uint16 slice of length 4.
-func getBlock(textFile *os.File) []uint16 {
+func getBlock(inputFile *os.File, mode Mode) []uint16 {
+	if mode == Decrypt {
+		return getCipherBlock(inputFile)
+	}
+
 	buf := make([]byte, 8)
-	_, err := textFile.Read(buf)
+	_, err := inputFile.Read(buf)
 	if err != nil {
 		return nil
 	}
@@ -169,22 +177,31 @@ func fileExists(filename string) bool {
 // Decryption processes 64-bit blocks at a time, and converts
 // the result to a 64-bit integer. The integer is broken up into
 // 8-bit ascii characters and written to the output file.
-func writeOutput(res uint64, outputFile *os.File) {
-	var c int8
-	var str string
-	for i := 0; i < 8; i++ {
-		c = int8(res) | c
-		if c != 0 {
-			str = string(c) + str
-			c = 0
+func writeOutput(res uint64, tf *twofishContext) {
+	if tf.mode == Encrypt {
+		hexStr := uint64ToHex(res)
+		_, err := tf.outputFile.Write([]byte(hexStr))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
 		}
-		res >>= 8
-	}
+	} else { // Decrypt
+		var c int8
+		var str string
+		for i := 0; i < 8; i++ {
+			c = int8(res) | c
+			if c != 0 {
+				str = string(c) + str
+				c = 0
+			}
+			res >>= 8
+		}
 
-	_, err := outputFile.Write([]byte(str))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
+		_, err := tf.outputFile.Write([]byte(str))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
+		}
 	}
 }
 
@@ -429,13 +446,7 @@ func f(round int, r0, r1 uint16, tf *twofishContext) (uint16, uint16) {
 // and writes the resulting ascii characters to the output file. Each block goes
 // through 16 rounds of transformations.
 func twofish(tf *twofishContext) {
-	var block []uint16
-	if tf.mode == Encrypt {
-		block = getBlock(tf.inputFile)
-	} else {
-		block = getCipherBlock(tf.inputFile)
-	}
-
+	var block []uint16 = getBlock(tf.inputFile, tf.mode)
 	if block == nil {
 		fmt.Fprintf(os.Stderr, "Error getting block from input file\n")
 		os.Exit(1)
@@ -476,13 +487,8 @@ func twofish(tf *twofishContext) {
 		res <<= 16
 		res |= uint64(r1 ^ tf.keyBlock[3])
 
-		if tf.mode == Encrypt {
-			outputHex(res, tf)
-			block = getBlock(tf.inputFile)
-		} else {
-			writeOutput(res, tf.outputFile)
-			block = getCipherBlock(tf.inputFile)
-		}
+		writeOutput(res, tf)
+		block = getBlock(tf.inputFile, tf.mode)
 		res = 0
 	}
 	tf.inputFile.Close()
