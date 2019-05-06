@@ -197,7 +197,7 @@ func outputHex(res uint64, tf *twofishContext) {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
-	tf.LogInfo("Wrote %d bytes to output file", n)
+	tf.LogInfo("Wrote %d bytes to cipher file", n)
 }
 
 // Generates a random hex string of the length of the byte array
@@ -436,6 +436,11 @@ func twofish(tf *twofishContext) {
 		block = getCipherBlock(tf.inputFile)
 	}
 
+	if block == nil {
+		fmt.Fprintf(os.Stderr, "Error getting block from input file\n")
+		os.Exit(1)
+	}
+
 	var res uint64
 	for block != nil {
 		int64ToKeyBlock(tf.key, tf.keyBlock)
@@ -480,6 +485,7 @@ func twofish(tf *twofishContext) {
 		}
 		res = 0
 	}
+	tf.inputFile.Close()
 	tf.outputFile.Close()
 }
 

@@ -1,6 +1,11 @@
 package main
 
-import "testing"
+import (
+	"io"
+	"math/rand"
+	"os"
+	"testing"
+)
 
 func TestInt64ToKeyblock(t *testing.T) {
 	var num uint64 = 12977601823743685594
@@ -24,5 +29,73 @@ func TestReverseSlice(t *testing.T) {
 			t.Errorf("expected %d, got: %d\n", uint8(5-i), arr[i])
 		}
 	}
+}
 
+func randomString(n int) string {
+	bytes := make([]byte, n)
+	for i := 0; i < n; i++ {
+		bytes[i] = byte(65 + rand.Intn(25)) // A - Z
+	}
+	return string(bytes)
+}
+
+func TestEncryption(t *testing.T) {
+	plaintext := "hello there, this is a string!"
+	randStr := randomString(6)
+
+	// Encryption
+	input, err := os.Create("input" + randStr)
+	if err != nil {
+		t.Errorf("%v\n", err)
+	}
+
+	_, err = input.Write([]byte(plaintext))
+	if err != nil {
+		t.Errorf("%v\n", err)
+	}
+	input.Seek(0, io.SeekStart)
+
+	cipherFile, err := os.Create("cipher" + randStr)
+	if err != nil {
+		t.Errorf("%v\n", err)
+	}
+
+	tf := twofishContext{
+		inputFile:  input,
+		key:        81985529216486895,
+		keyBlock:   make([]uint16, 4),
+		keysize:    16,
+		mode:       Encrypt,
+		outputFile: cipherFile,
+		verbose:    false,
+	}
+	twofish(&tf)
+
+	// Decryption
+	tf.inputFile, err = os.Open("cipher" + randStr)
+	if err != nil {
+		t.Errorf("%v\n", err)
+	}
+
+	tf.outputFile, err = os.Create("output" + randStr)
+	if err != nil {
+		t.Errorf("%v\n", err)
+	}
+	tf.mode = Decrypt
+	twofish(&tf)
+
+	// Veryfiy plain text equals decrypted text
+	outputFile, _ := os.Open("output" + randStr)
+	outputText := make([]byte, 100)
+	n, _ := outputFile.Read(outputText)
+
+	if plaintext != string(outputText[0:len(plaintext)]) && n != len(plaintext) {
+		t.Errorf("encryption error: plain text and output text don't match\n")
+		t.Errorf("plain: %s\n", plaintext)
+		t.Errorf("output: %s\n", string(outputText))
+	}
+
+	_ = os.Remove("input" + randStr)
+	_ = os.Remove("cipher" + randStr)
+	_ = os.Remove("output" + randStr)
 }
